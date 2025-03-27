@@ -49,3 +49,15 @@ export const updateUserSchema = Joi.object({
   .messages({
     "object.missing": "請至少提供帳號或密碼其中一項進行更新",
   });
+
+// admin 驗證碼驗證
+export const verifyCodeSchema = Joi.object({
+  account: Joi.string().email().required(),
+  code: Joi.string().length(6).required(),
+});
+
+// 重設密碼驗證
+export const resetPasswordSchema = Joi.object({
+  account: Joi.string().email().required(),
+  newPassword: Joi.string().min(6).required(),
+});

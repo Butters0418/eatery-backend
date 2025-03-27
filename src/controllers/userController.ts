@@ -1,10 +1,12 @@
 import mongoose from "mongoose";
 import { RequestHandler } from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/User";
 import { AuthRequest } from "../middleware/authMiddleware";
-import { loginSchema, createUserSchema, updateUserSchema } from "../validations/userValidation";
+import { loginSchema, createUserSchema, updateUserSchema, verifyCodeSchema, resetPasswordSchema } from "../validations/userValidation";
+import { sendVerificationCode } from "../utils/mailer";
 
 // 100 用戶登錄
 export const loginUser: RequestHandler = async (req, res, next) => {
@@ -24,19 +26,40 @@ export const loginUser: RequestHandler = async (req, res, next) => {
     }
 
     if (user.isLocked) {
-      res.status(403).json({ message: "帳號已鎖定，請聯絡管理員" });
+      const lockedMessage = user.role === "admin" ? "帳號已鎖定，驗證碼已寄到您的信箱" : "帳號已鎖定，請聯絡管理員";
+      res.status(403).json({ message: lockedMessage });
       return;
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       user.loginFailCount += 1;
-      if (user.loginFailCount >= 3) user.isLocked = true;
+
+      if (user.loginFailCount >= 3) {
+        user.isLocked = true;
+
+        if (user.role === "admin") {
+          const code = crypto.randomInt(100000, 999999).toString();
+          user.verificationCode = code;
+          user.verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+          await sendVerificationCode(user.account, code);
+        }
+      }
+
       await user.save();
+
+      if (user.isLocked) {
+        const lockedMessage = user.role === "admin" ? "帳號已鎖定，驗證碼已寄到您的信箱" : "帳號已鎖定，請聯絡管理員";
+        res.status(403).json({ message: lockedMessage });
+        return;
+      }
+
       res.status(401).json({ message: "密碼錯誤" });
       return;
     }
 
+    // 成功登入
     user.loginFailCount = 0;
     await user.save();
 
@@ -191,5 +214,94 @@ export const deleteUser: RequestHandler = async (req, res) => {
     res.json({ message: "使用者已成功刪除" });
   } catch (err) {
     res.status(500).json({ message: "伺服器錯誤" });
+  }
+};
+
+// 108 驗證 admin 驗證碼
+export const verifyResetCode: RequestHandler = async (req, res, next) => {
+  try {
+    const { error } = verifyCodeSchema.validate(req.body);
+    if (error) {
+      res.status(400).json({ message: error.details[0].message });
+      return;
+    }
+
+    const { account, code } = req.body;
+
+    const user = await User.findOne({ account, role: "admin" });
+    if (!user || user.verificationCode !== code) {
+      res.status(400).json({ message: "驗證碼錯誤" });
+      return;
+    }
+
+    if (!user.verificationExpires || user.verificationExpires < new Date()) {
+      res.status(400).json({ message: "驗證碼已過期" });
+      return;
+    }
+
+    // 驗證成功，解鎖帳號並清除驗證碼
+    user.isLocked = false;
+    user.loginFailCount = 0;
+    user.verificationCode = null;
+    user.verificationExpires = null;
+    await user.save();
+
+    res.json({ message: "驗證成功，請重新登入" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 109 重寄驗証碼
+export const resendVerificationCode: RequestHandler = async (req, res, next) => {
+  try {
+    const { account } = req.body;
+    const user = await User.findOne({ account, role: "admin" });
+
+    if (!user || !user.isLocked) {
+      res.status(400).json({ message: "帳號未鎖定或不存在" });
+      return;
+    }
+
+    const code = crypto.randomInt(100000, 999999).toString();
+    user.verificationCode = code;
+    user.verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    await sendVerificationCode(user.account, code);
+    res.json({ message: "驗證碼已重新寄出，請查收信箱" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 110 重設密碼
+export const resetPassword: RequestHandler = async (req, res, next) => {
+  try {
+    const { error } = resetPasswordSchema.validate(req.body);
+    if (error) {
+      res.status(400).json({ message: error.details[0].message });
+      return;
+    }
+
+    const { account, newPassword } = req.body;
+
+    const user = await User.findOne({ account, role: "admin" });
+    if (!user) {
+      res.status(404).json({ message: "使用者不存在" });
+      return;
+    }
+
+    if (user.verificationCode || user.isLocked) {
+      res.status(403).json({ message: "請先通過驗證碼驗證" });
+      return;
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ message: "密碼重設成功，請重新登入" });
+  } catch (err) {
+    next(err);
   }
 };

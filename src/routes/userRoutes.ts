@@ -1,5 +1,5 @@
 import express, { Router, RequestHandler } from "express";
-import { loginUser, getAllUsers, getCurrentUser, createUser, unlockUser, updateUser, deleteUser } from "../controllers/userController";
+import { loginUser, getAllUsers, getCurrentUser, createUser, unlockUser, updateUser, deleteUser, verifyResetCode, resendVerificationCode, resetPassword } from "../controllers/userController";
 import { verifyToken, checkAdmin } from "../middleware/authMiddleware";
 
 const router: Router = express.Router();
@@ -24,5 +24,14 @@ router.patch("/users/:id", verifyToken, checkAdmin, updateUser as RequestHandler
 
 // 刪除 staff 帳號 （只有 admin 可用）
 router.delete("/users/:id", verifyToken, checkAdmin, deleteUser as RequestHandler);
+
+// 驗證 admin 驗證碼
+router.post("/verify-reset-code", verifyResetCode as RequestHandler);
+
+// 重寄驗證碼
+router.post("/resend-verification-code", resendVerificationCode as RequestHandler);
+
+// 重設密碼
+router.post("/reset-password", resetPassword as RequestHandler);
 
 export default router;

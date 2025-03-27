@@ -6,6 +6,8 @@ export interface IUser extends Document {
   role: "admin" | "staff";
   isLocked: boolean;
   loginFailCount: number;
+  verificationCode?: string | null;
+  verificationExpires?: Date | null;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -17,6 +19,8 @@ const UserSchema: Schema<IUser> = new Schema(
     role: { type: String, enum: ["admin", "staff"], required: true },
     isLocked: { type: Boolean, default: false },
     loginFailCount: { type: Number, default: 0 },
+    verificationCode: { type: String, default: null },
+    verificationExpires: { type: Date, default: null },
   },
   { timestamps: true }
 );
