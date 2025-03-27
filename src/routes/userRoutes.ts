@@ -1,8 +1,28 @@
 import express, { Router, RequestHandler } from "express";
-import { loginUser } from "../controllers/userController";
+import { loginUser, getAllUsers, getCurrentUser, createUser, unlockUser, updateUser, deleteUser } from "../controllers/userController";
+import { verifyToken, checkAdmin } from "../middleware/authMiddleware";
 
-const router = express.Router();
+const router: Router = express.Router();
 
-router.post("/login", loginUser as RequestHandler);
+// 登入：不需驗證
+router.post("/login", loginUser);
+
+// 取得目前登入者資訊：需要登入
+router.get("/me", verifyToken, getCurrentUser);
+
+// 取得所有使用者（只有 admin 可用）
+router.get("/users", verifyToken, checkAdmin, getAllUsers);
+
+// 新增 staff 帳號 （只有 admin 可用）
+router.post("/users", verifyToken, checkAdmin, createUser as RequestHandler);
+
+// 解鎖員工帳號 （只有 admin 可用）
+router.patch("/users/:id/unlock", verifyToken, checkAdmin, unlockUser as RequestHandler);
+
+// 更新 staff 資訊 (帳號、密碼) （只有 admin 可用）
+router.patch("/users/:id", verifyToken, checkAdmin, updateUser as RequestHandler);
+
+// 刪除 staff 帳號 （只有 admin 可用）
+router.delete("/users/:id", verifyToken, checkAdmin, deleteUser as RequestHandler);
 
 export default router;
