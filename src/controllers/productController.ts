@@ -1,8 +1,9 @@
 import mongoose from "mongoose";
-import { RequestHandler } from "express";
+import { RequestHandler, Request, Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 import Product from "../models/Product";
 import { createProductSchema, updateProductSchema } from "../validations/productValidation";
+import { bucket } from "../config/firebase";
 
 // 200 - 取得所有商品
 export const getAllProducts: RequestHandler = async (_req, res, next) => {
@@ -179,6 +180,41 @@ export const updateProductAvailable: RequestHandler = async (req: AuthRequest, r
     }
 
     res.json({ message: "商品上架狀態已更新", product: updated });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 207 - 上傳圖片
+export const uploadImage: RequestHandler = async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ message: "請選擇圖片上傳" });
+      return;
+    }
+
+    const blob = bucket.file(`products/${Date.now()}-${req.file.originalname}`);
+    const blobStream = blob.createWriteStream({
+      metadata: {
+        contentType: req.file.mimetype,
+      },
+    });
+
+    blobStream.on("error", (err) => {
+      console.error(err);
+      res.status(500).json({ message: "圖片上傳失敗" });
+    });
+
+    blobStream.on("finish", async () => {
+      // 讓圖片公開
+      await blob.makePublic();
+
+      // 使用公開 URL
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
+      res.status(200).json({ imageUrl: publicUrl });
+    });
+
+    blobStream.end(req.file.buffer);
   } catch (err) {
     next(err);
   }
