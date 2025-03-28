@@ -14,6 +14,7 @@ export interface IProduct extends Document {
   name: string;
   price: number;
   category: string;
+  description: string;
   imageUrl?: string;
   isAvailable: boolean;
   isPopular: boolean;
@@ -27,6 +28,7 @@ const ProductSchema: Schema<IProduct> = new Schema(
     name: { type: String, required: true },
     price: { type: Number, required: true },
     category: { type: String, required: true },
+    description: { type: String, required: false },
     imageUrl: { type: String, default: "" },
     isAvailable: { type: Boolean, required: true, default: true },
     isPopular: { type: Boolean, required: true, default: false },
