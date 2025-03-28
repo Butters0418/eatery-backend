@@ -46,3 +46,37 @@ export const createProductSchema = Joi.object({
     )
     .default([]),
 });
+
+export const updateProductSchema = Joi.object({
+  name: Joi.string().messages({
+    "string.empty": "商品名稱不可為空",
+  }),
+  description: Joi.string().allow(""),
+  price: Joi.number().min(0).messages({
+    "number.min": "價格不能小於 0",
+  }),
+  isAvailable: Joi.boolean(),
+  isPopular: Joi.boolean(),
+  imageUrl: Joi.string().uri().allow(""),
+  category: Joi.string().messages({
+    "string.empty": "分類不可為空",
+  }),
+  addons: Joi.array().items(
+    Joi.object({
+      group: Joi.string().required().messages({
+        "any.required": "加料群組為必填",
+      }),
+      options: Joi.array()
+        .items(
+          Joi.object({
+            name: Joi.string().required().messages({
+              "any.required": "選項名稱為必填",
+            }),
+            price: Joi.number().min(0).default(0),
+          })
+        )
+        .min(1)
+        .required(),
+    })
+  ),
+});
