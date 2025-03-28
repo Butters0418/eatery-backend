@@ -42,7 +42,6 @@ export const loginUser: RequestHandler = async (req, res, next) => {
           const code = crypto.randomInt(100000, 999999).toString();
           user.verificationCode = code;
           user.verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
-
           await sendVerificationCode(user.account, code);
         }
       }
@@ -59,7 +58,6 @@ export const loginUser: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    // 成功登入
     user.loginFailCount = 0;
     await user.save();
 
@@ -78,16 +76,6 @@ export const loginUser: RequestHandler = async (req, res, next) => {
   }
 };
 
-// 103 取得所有使用者資訊（限 admin）
-export const getAllUsers: RequestHandler = async (_req, res, next) => {
-  try {
-    const users = await User.find().select("-password");
-    res.json(users);
-  } catch (err) {
-    next(err);
-  }
-};
-
 // 102 取得目前登入者資訊 (admin 與 staff 皆可)
 export const getCurrentUser: RequestHandler = (req: AuthRequest, res) => {
   if (!req.user) {
@@ -101,17 +89,27 @@ export const getCurrentUser: RequestHandler = (req: AuthRequest, res) => {
   });
 };
 
-// 104 新增 staff 帳號
-export const createUser: RequestHandler = async (req, res) => {
-  const { error } = createUserSchema.validate(req.body);
-  if (error) {
-    res.status(400).json({ message: error.details[0].message });
-    return;
-  }
-
-  const { account, password } = req.body;
-
+// 103 取得所有使用者資訊（限 admin）
+export const getAllUsers: RequestHandler = async (_req, res, next) => {
   try {
+    const users = await User.find().select("-password");
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 104 新增 staff 帳號
+export const createUser: RequestHandler = async (req, res, next) => {
+  try {
+    const { error } = createUserSchema.validate(req.body);
+    if (error) {
+      res.status(400).json({ message: error.details[0].message });
+      return;
+    }
+
+    const { account, password } = req.body;
+
     const existingUser = await User.findOne({ account });
     if (existingUser) {
       res.status(409).json({ message: "此帳號已存在" });
@@ -131,12 +129,12 @@ export const createUser: RequestHandler = async (req, res) => {
     await newUser.save();
     res.status(201).json({ message: "新增員工帳號成功" });
   } catch (err) {
-    res.status(500).json({ message: "伺服器錯誤" });
+    next(err);
   }
 };
 
 // 105 解鎖員工帳號
-export const unlockUser: RequestHandler = async (req, res) => {
+export const unlockUser: RequestHandler = async (req, res, next) => {
   const userId = req.params.id;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -157,12 +155,12 @@ export const unlockUser: RequestHandler = async (req, res) => {
 
     res.json({ message: "帳號已成功解鎖" });
   } catch (err) {
-    res.status(500).json({ message: "伺服器錯誤" });
+    next(err);
   }
 };
 
 // 106 更新 staff 資訊 (帳號、密碼)
-export const updateUser: RequestHandler = async (req, res) => {
+export const updateUser: RequestHandler = async (req, res, next) => {
   const userId = req.params.id;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -170,15 +168,14 @@ export const updateUser: RequestHandler = async (req, res) => {
     return;
   }
 
-  const { error } = updateUserSchema.validate(req.body);
-  if (error) {
-    res.status(400).json({ message: error.details[0].message });
-    return;
-  }
-
-  const { account, password } = req.body;
-
   try {
+    const { error } = updateUserSchema.validate(req.body);
+    if (error) {
+      res.status(400).json({ message: error.details[0].message });
+      return;
+    }
+
+    const { account, password } = req.body;
     const user = await User.findById(userId);
     if (!user) {
       res.status(404).json({ message: "使用者不存在" });
@@ -191,12 +188,12 @@ export const updateUser: RequestHandler = async (req, res) => {
     await user.save();
     res.json({ message: "使用者資訊已更新" });
   } catch (err) {
-    res.status(500).json({ message: "伺服器錯誤" });
+    next(err);
   }
 };
 
 // 107 刪除 staff 帳號
-export const deleteUser: RequestHandler = async (req, res) => {
+export const deleteUser: RequestHandler = async (req, res, next) => {
   const userId = req.params.id;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -213,7 +210,7 @@ export const deleteUser: RequestHandler = async (req, res) => {
 
     res.json({ message: "使用者已成功刪除" });
   } catch (err) {
-    res.status(500).json({ message: "伺服器錯誤" });
+    next(err);
   }
 };
 
@@ -227,8 +224,8 @@ export const verifyResetCode: RequestHandler = async (req, res, next) => {
     }
 
     const { account, code } = req.body;
-
     const user = await User.findOne({ account, role: "admin" });
+
     if (!user || user.verificationCode !== code) {
       res.status(400).json({ message: "驗證碼錯誤" });
       return;
@@ -239,7 +236,6 @@ export const verifyResetCode: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    // 驗證成功，解鎖帳號並清除驗證碼
     user.isLocked = false;
     user.loginFailCount = 0;
     user.verificationCode = null;
@@ -252,7 +248,7 @@ export const verifyResetCode: RequestHandler = async (req, res, next) => {
   }
 };
 
-// 109 重寄驗証碼
+// 109 重寄驗證碼
 export const resendVerificationCode: RequestHandler = async (req, res, next) => {
   try {
     const { account } = req.body;
@@ -285,8 +281,8 @@ export const resetPassword: RequestHandler = async (req, res, next) => {
     }
 
     const { account, newPassword } = req.body;
-
     const user = await User.findOne({ account, role: "admin" });
+
     if (!user) {
       res.status(404).json({ message: "使用者不存在" });
       return;
