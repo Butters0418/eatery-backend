@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import userRoutes from "./routes/userRoutes";
+import productRoutes from "./routes/productRoutes";
 
 dotenv.config();
 
@@ -22,7 +23,7 @@ mongoose
 
 // ✅ 掛載所有 /api 路由
 app.use("/api", userRoutes);
-
+app.use("/api", productRoutes);
 // 測試根路由
 app.get("/", (req, res) => {
   res.send("API is running 🚀");
