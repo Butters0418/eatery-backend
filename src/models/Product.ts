@@ -1,40 +1,56 @@
 import mongoose, { Schema, Document } from "mongoose";
 
-export interface IAddonOption {
+interface AddonOption {
   name: string;
   price: number;
 }
 
-export interface IAddonGroup {
+interface AddonGroup {
   group: string;
-  options: IAddonOption[];
+  options: AddonOption[];
 }
 
 export interface IProduct extends Document {
   name: string;
+  description?: string;
   price: number;
   category: string;
-  description: string;
   imageUrl?: string;
   isAvailable: boolean;
   isPopular: boolean;
-  addons?: IAddonGroup[];
-  created_at: Date;
-  updated_at: Date;
+  addons: AddonGroup[];
+  createdAt: Date;
+  updatedAt: Date;
 }
+
+const AddonOptionSchema = new Schema<AddonOption>(
+  {
+    name: { type: String, required: true },
+    price: { type: Number, default: 0 },
+  },
+  { _id: false }
+);
+
+const AddonGroupSchema = new Schema<AddonGroup>(
+  {
+    group: { type: String, required: true },
+    options: { type: [AddonOptionSchema], required: true },
+  },
+  { _id: false }
+);
 
 const ProductSchema: Schema<IProduct> = new Schema(
   {
     name: { type: String, required: true },
+    description: { type: String, default: "" },
     price: { type: Number, required: true },
     category: { type: String, required: true },
-    description: { type: String, required: false },
     imageUrl: { type: String, default: "" },
-    isAvailable: { type: Boolean, required: true, default: true },
-    isPopular: { type: Boolean, required: true, default: false },
-    addons: { type: Array, default: [] },
+    isAvailable: { type: Boolean, required: true },
+    isPopular: { type: Boolean, default: false },
+    addons: { type: [AddonGroupSchema], default: [] },
   },
-  { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
+  { timestamps: true }
 );
 
 export default mongoose.model<IProduct>("Product", ProductSchema);

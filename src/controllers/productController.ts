@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { RequestHandler } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 import Product from "../models/Product";
+import { createProductSchema } from "../validations/productValidation";
 
 // 200 - 取得所有商品
 export const getAllProducts: RequestHandler = async (_req, res, next) => {
@@ -32,6 +33,29 @@ export const getProductById: RequestHandler = async (req, res, next) => {
     }
 
     res.json(product);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 202 - 新增商品（僅限 admin）
+export const createProduct: RequestHandler = async (req: AuthRequest, res, next) => {
+  try {
+    if (req.user?.role !== "admin") {
+      res.status(403).json({ message: "只有管理員可以新增商品" });
+      return;
+    }
+
+    const { error } = createProductSchema.validate(req.body);
+    if (error) {
+      res.status(400).json({ message: error.details[0].message });
+      return;
+    }
+
+    const newProduct = new Product(req.body);
+    await newProduct.save();
+
+    res.status(201).json({ message: "商品新增成功", product: newProduct });
   } catch (err) {
     next(err);
   }
