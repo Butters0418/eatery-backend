@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import userRoutes from "./routes/userRoutes";
 import productRoutes from "./routes/productRoutes";
 import tableRoutes from "./routes/tableRoutes";
+import uploadRoutes from "./routes/uploadRoutes";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ mongoose
 app.use("/api", userRoutes);
 app.use("/api", productRoutes);
 app.use("/api", tableRoutes);
+app.use("/api", uploadRoutes);
 
 // 測試根路由
 app.get("/", (req, res) => {
