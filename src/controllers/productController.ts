@@ -14,7 +14,7 @@ export const getAllProducts: RequestHandler = async (_req, res, next) => {
   }
 };
 
-// 201 取得單一商品詳細資料
+// 201 - 取得單一商品詳細資料
 export const getProductById: RequestHandler = async (req, res, next) => {
   const productId = req.params.id;
 

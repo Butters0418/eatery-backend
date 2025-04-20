@@ -61,7 +61,7 @@ export const loginUser: RequestHandler = async (req, res, next) => {
     user.loginFailCount = 0;
     await user.save();
 
-    const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET!, { expiresIn: "1d" });
+    const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET!, { expiresIn: "7d" });
 
     res.json({
       message: "登入成功",

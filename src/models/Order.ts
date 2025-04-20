@@ -13,14 +13,16 @@ interface Addon {
 interface OrderItem {
   productId: mongoose.Types.ObjectId;
   name: string;
+  price: number;
   qty: number;
   addons: Addon[];
 }
 
-interface OrderListItem {
+export interface OrderListItem {
   itemCode: string;
   item: OrderItem[];
   isServed: boolean;
+  createdBy?: mongoose.Types.ObjectId | null;
 }
 
 export interface IOrder extends Document {
@@ -32,7 +34,6 @@ export interface IOrder extends Document {
   isAllServed: boolean;
   isPaid: boolean;
   isComplete: boolean;
-  createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,7 +41,7 @@ export interface IOrder extends Document {
 const AddonOptionSchema = new Schema<AddonOption>(
   {
     name: { type: String, required: true },
-    price: { type: Number, default: 0 },
+    price: { type: Number, required: true },
   },
   { _id: false }
 );
@@ -48,15 +49,16 @@ const AddonOptionSchema = new Schema<AddonOption>(
 const AddonSchema = new Schema<Addon>(
   {
     group: { type: String, required: true },
-    options: { type: [AddonOptionSchema], default: [] },
+    options: { type: [AddonOptionSchema], required: true },
   },
   { _id: false }
 );
 
 const OrderItemSchema = new Schema<OrderItem>(
   {
-    productId: { type: Schema.Types.ObjectId, required: true, ref: "Product" },
+    productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
     name: { type: String, required: true },
+    price: { type: Number, required: true },
     qty: { type: Number, required: true },
     addons: { type: [AddonSchema], default: [] },
   },
@@ -68,6 +70,7 @@ const OrderListItemSchema = new Schema<OrderListItem>(
     itemCode: { type: String, required: true },
     item: { type: [OrderItemSchema], required: true },
     isServed: { type: Boolean, default: false },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
   },
   { _id: false }
 );
@@ -75,14 +78,13 @@ const OrderListItemSchema = new Schema<OrderListItem>(
 const OrderSchema = new Schema<IOrder>(
   {
     orderType: { type: String, enum: ["內用", "外帶"], required: true },
-    orderCode: { type: String, required: true, unique: true },
+    orderCode: { type: String, required: true },
     tableId: { type: Schema.Types.ObjectId, ref: "Table" },
     orderList: { type: [OrderListItemSchema], required: true },
     totalPrice: { type: Number, required: true },
-    isAllServed: { type: Boolean, default: false },
-    isPaid: { type: Boolean, default: false },
-    isComplete: { type: Boolean, default: false },
-    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    isAllServed: { type: Boolean, required: true, default: false },
+    isPaid: { type: Boolean, required: true, default: false },
+    isComplete: { type: Boolean, required: true, default: false },
   },
   { timestamps: true }
 );

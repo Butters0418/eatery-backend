@@ -147,6 +147,7 @@ export const resetTable: RequestHandler = async (req, res, next) => {
 
     table.status = TableStatus.Available;
     table.qrToken = crypto.randomUUID();
+    table.currentOrder = null;
     await table.save();
 
     res.json({

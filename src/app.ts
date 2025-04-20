@@ -6,6 +6,7 @@ import userRoutes from "./routes/userRoutes";
 import productRoutes from "./routes/productRoutes";
 import tableRoutes from "./routes/tableRoutes";
 import uploadRoutes from "./routes/uploadRoutes";
+import orderRoutes from "./routes/orderRoutes";
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use("/api", userRoutes);
 app.use("/api", productRoutes);
 app.use("/api", tableRoutes);
 app.use("/api", uploadRoutes);
+app.use("/api", orderRoutes);
 
 // 測試根路由
 app.get("/", (req, res) => {

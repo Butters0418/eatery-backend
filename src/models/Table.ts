@@ -8,7 +8,7 @@ export enum TableStatus {
 export interface ITable extends Document {
   tableNumber: number;
   status: TableStatus;
-  currentOrder?: mongoose.Types.ObjectId;
+  currentOrder?: mongoose.Types.ObjectId | null;
   qrImage: string;
   qrToken: string;
   updated_at: Date;
