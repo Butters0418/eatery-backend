@@ -158,3 +158,37 @@ export const resetTable: RequestHandler = async (req, res, next) => {
     next(err);
   }
 };
+
+// 407 - 取得 QR Code Token
+export const getQrTokenByTableCode: RequestHandler = async (req, res, next) => {
+  const code = req.query.code;
+  if (!code || typeof code !== "string") {
+    res.status(400).json({ message: "缺少桌號參數 (code)" });
+    return;
+  }
+
+  try {
+    // 解析出桌號數字
+    const match = code.match(/^T-(\d{2})$/);
+    if (!match) {
+      res.status(400).json({ message: "桌號格式錯誤，應為 T-01 這種格式" });
+      return;
+    }
+
+    const tableNumber = parseInt(match[1], 10);
+    const table = await Table.findOne({ tableNumber });
+
+    if (!table || !table.qrToken) {
+      res.status(404).json({ message: "找不到該桌號或尚未分配 QRToken" });
+      return;
+    }
+
+    res.json({
+      qrToken: table.qrToken,
+      tableId: table._id,
+    });
+    return;
+  } catch (err) {
+    next(err);
+  }
+};
