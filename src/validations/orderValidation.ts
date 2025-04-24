@@ -24,6 +24,10 @@ const addonOptionSchema = Joi.object({
     "number.base": "addons 價格需為數字",
     "any.required": "addons 價格為必填",
   }),
+  selected: Joi.boolean().required().messages({
+    "boolean.base": "addons 選擇需為布林值",
+    "any.required": "addons 選擇為必填",
+  }),
 });
 
 // addons 群組
@@ -94,4 +98,9 @@ export const createOrderSchema = Joi.object({
   }),
 
   orderList: Joi.array().items(orderEntrySchema).min(1).required(),
+});
+
+// 編輯訂單 schema
+export const updateOrderItemSchema = Joi.object({
+  item: Joi.array().items(itemSchema).min(1).required(),
 });

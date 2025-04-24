@@ -3,8 +3,9 @@ import Order, { OrderListItem } from "../models/Order";
 import Table from "../models/Table";
 import { TableStatus } from "../models/Table";
 import { AuthRequest } from "../middleware/authMiddleware";
-import { createOrderSchema } from "../validations/orderValidation";
+import { createOrderSchema, updateOrderItemSchema } from "../validations/orderValidation";
 import mongoose from "mongoose";
+import crypto from "crypto";
 
 // 產生外帶訂單編號
 const generateTakeoutCode = async () => {
@@ -39,7 +40,11 @@ const generateDineInCode = async (tableNumber: number) => {
 const calculateTotalPrice = (orderList: OrderListItem[]): number => {
   return orderList.reduce((total, entry) => {
     const itemSum = entry.item.reduce((sum, p) => {
-      const addonsTotal = p.addons?.flatMap((a) => a.options).reduce((a, o) => a + o.price, 0) || 0;
+      const addonsTotal =
+        p.addons
+          ?.flatMap((a) => a.options)
+          .filter((o) => o.selected)
+          .reduce((a, o) => a + o.price, 0) || 0;
       return sum + (p.price + addonsTotal) * p.qty;
     }, 0);
     return total + itemSum;
@@ -64,6 +69,42 @@ export const getAllOrders: RequestHandler = async (req, res, next) => {
 
     const orders = await Order.find(query).sort({ createdAt: -1 }).populate("tableId", "tableNumber"); //（可加篩選條件）
     res.json(orders);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 301 - 取得單筆訂單（ 限 admin / staff，查詢已刪除訂單 (admin) ）
+export const getOrderById: RequestHandler = async (req: AuthRequest, res, next) => {
+  const orderId = req.params.id;
+  const includeDeleted = req.query.includeDeleted === "true";
+
+  // 權限判斷
+  if (!req.user || (req.user.role !== "admin" && req.user.role !== "staff")) {
+    res.status(403).json({ message: "只有管理員與員工可以查詢訂單" });
+    return;
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(orderId)) {
+    res.status(400).json({ message: "無效的訂單 ID" });
+    return;
+  }
+
+  try {
+    // 若非 admin 且未帶入 includeDeleted，排除 isDeleted = true 的訂單
+    const query: any = { _id: orderId };
+    if (!includeDeleted || req.user.role !== "admin") {
+      query.isDeleted = { $ne: true };
+    }
+
+    const order = await Order.findOne(query).populate("tableId", "tableNumber").populate("orderList.createdBy", "account");
+
+    if (!order) {
+      res.status(404).json({ message: "找不到該訂單" });
+      return;
+    }
+
+    res.json(order);
   } catch (err) {
     next(err);
   }
@@ -127,9 +168,20 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
 
     // 如果有訂單 & 尚未結帳 => 視為加點流程
     if (existingOrder && !existingOrder.isPaid && !existingOrder.isComplete) {
-      const currentCount = existingOrder.orderList.length;
-      const newItemCodes = orderList.map((_, i) => `${existingOrder.orderCode}-${currentCount + i + 1}`);
-      const newList = orderList.map((entry, i) => ({ ...entry, itemCode: newItemCodes[i], createdBy: createdBy as mongoose.Types.ObjectId | null }));
+      // 找出目前 itemCode 的最大流水號
+      const maxIndex = existingOrder.orderList
+        .map((entry) => {
+          const parts = entry.itemCode.split("-");
+          return parseInt(parts[parts.length - 1], 10);
+        })
+        .reduce((max, current) => Math.max(max, current), 0);
+
+      const newItemCodes = orderList.map((_, i) => `${existingOrder.orderCode}-${maxIndex + i + 1}`);
+      const newList = orderList.map((entry, i) => ({
+        ...entry,
+        itemCode: newItemCodes[i],
+        createdBy: createdBy as mongoose.Types.ObjectId | null,
+      }));
 
       existingOrder.orderList.push(...newList);
       existingOrder.totalPrice = calculateTotalPrice(existingOrder.orderList);
@@ -169,6 +221,7 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
       res.status(201).json({ message: "訂單建立成功", order: newOrder });
       return;
     }
+
     // 桌子狀態是使用中，但沒有 currentOrder => 資料異常
     res.status(409).json({ message: "桌位狀態異常，請聯絡管理員" });
     return;
@@ -179,5 +232,315 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
     } else {
       next(err);
     }
+  }
+};
+
+// 303 - 編輯訂單之單次點餐 item
+export const updateOrderItem: RequestHandler = async (req, res, next) => {
+  try {
+    const orderId = req.params.id;
+    const itemCode = req.params.itemCode;
+    const { item } = req.body;
+
+    // Joi 非同步驗證 item 結構
+    try {
+      await updateOrderItemSchema.validateAsync({ item });
+    } catch (error: any) {
+      res.status(400).json({ message: error.details[0].message });
+      return;
+    }
+
+    // 檢查 order 是否存在
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+      res.status(404).json({ message: "找不到訂單" });
+      return;
+    }
+
+    // 檢查 order 是否已刪除
+    if (order.isDeleted) {
+      res.status(403).json({ message: "該訂單已刪除，無法執行此操作" });
+      return;
+    }
+
+    // 找到對應 itemCode 的 entry
+    const entryIndex = order.orderList.findIndex((entry) => entry.itemCode === itemCode);
+    if (entryIndex === -1) {
+      res.status(404).json({ message: "找不到指定的訂單項目 (itemCode)" });
+      return;
+    }
+
+    // 若已送餐不可編輯
+    if (order.orderList[entryIndex].isServed) {
+      res.status(403).json({ message: "此餐點已送出，無法修改" });
+      return;
+    }
+
+    // 替換 item 陣列
+    order.orderList[entryIndex].item = item;
+
+    // 重新計算總金額
+    order.totalPrice = calculateTotalPrice(order.orderList);
+
+    order.updatedAt = new Date();
+    await order.save();
+
+    res.json({ message: "訂單已更新", order });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 304 - 刪除單一點餐 item
+export const deleteOrderItem: RequestHandler = async (req, res, next) => {
+  const orderId = req.params.id;
+  const itemCode = req.params.itemCode;
+
+  if (!mongoose.Types.ObjectId.isValid(orderId)) {
+    res.status(400).json({ message: "無效的訂單 ID" });
+    return;
+  }
+
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({ message: "找不到該訂單" });
+      return;
+    }
+
+    // 檢查 order 是否已刪除
+    if (order.isDeleted) {
+      res.status(403).json({ message: "該訂單已刪除，無法執行此操作" });
+      return;
+    }
+
+    const entryIndex = order.orderList.findIndex((entry) => entry.itemCode === itemCode);
+    if (entryIndex === -1) {
+      res.status(404).json({ message: "找不到指定的訂單項目 (itemCode)" });
+      return;
+    }
+
+    // 若該筆已送餐，不可刪除
+    if (order.orderList[entryIndex].isServed) {
+      res.status(403).json({ message: "已出餐項目無法刪除" });
+      return;
+    }
+
+    // 刪除該筆項目
+    order.orderList.splice(entryIndex, 1);
+
+    // 更新 totalPrice
+    order.totalPrice = calculateTotalPrice(order.orderList);
+
+    // 檢查是否所有項目都已出餐
+    order.isAllServed = order.orderList.every((entry) => entry.isServed);
+    await order.save();
+
+    res.json({ message: "訂單項目已刪除", order });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 305 - 刪除訂單（軟刪除)
+export const softDeleteOrder: RequestHandler = async (req, res, next) => {
+  try {
+    const orderId = req.params.id;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({ message: "找不到訂單" });
+      return;
+    }
+
+    // 若已刪除，回報
+    if (order.isDeleted) {
+      res.status(400).json({ message: "訂單已刪除" });
+      return;
+    }
+
+    // 若已結帳，不可刪除
+    if (order.isPaid) {
+      res.status(403).json({ message: "已結帳的訂單不可刪除" });
+      return;
+    }
+
+    // 若任何一筆 item 已送餐，不可刪除
+    const hasServedItem = order.orderList.some((entry) => entry.isServed);
+    if (hasServedItem) {
+      res.status(403).json({ message: "訂單中已有出餐項目，不可刪除" });
+      return;
+    }
+
+    // 通過條件，執行軟刪除
+    order.isDeleted = true;
+    order.updatedAt = new Date();
+
+    // 如果是內用，要更新桌位狀態
+    if (order.orderType === "內用" && order.tableId) {
+      const table = await Table.findById(order.tableId);
+      if (table) {
+        table.status = TableStatus.Available;
+        table.qrToken = crypto.randomUUID();
+        table.currentOrder = null;
+        await table.save();
+      }
+    }
+
+    await order.save();
+
+    res.json({ message: "訂單已軟刪除", order });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 306 -  item 標示已出餐 (單次點餐)
+export const markItemAsServed: RequestHandler = async (req, res, next) => {
+  const orderId = req.params.id;
+  const itemCode = req.params.itemCode;
+
+  if (!mongoose.Types.ObjectId.isValid(orderId)) {
+    res.status(400).json({ message: "無效的訂單 ID" });
+    return;
+  }
+
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({ message: "找不到訂單" });
+      return;
+    }
+
+    // 檢查 order 是否已刪除
+    if (order.isDeleted) {
+      res.status(403).json({ message: "該訂單已刪除，無法執行此操作" });
+      return;
+    }
+
+    const entry = order.orderList.find((entry) => entry.itemCode === itemCode);
+    if (!entry) {
+      res.status(404).json({ message: "找不到指定的訂單項目 (itemCode)" });
+      return;
+    }
+
+    if (entry.isServed) {
+      res.status(400).json({ message: "該項目已標示為出餐" });
+      return;
+    }
+
+    // 標記為已出餐
+    entry.isServed = true;
+
+    // 檢查是否所有項目都已出餐
+    order.isAllServed = order.orderList.every((entry) => entry.isServed);
+
+    order.updatedAt = new Date();
+    await order.save();
+
+    res.status(200).json({ message: "項目已標示為出餐", order });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 307 - 訂單結帳
+export const markOrderAsPaid: RequestHandler = async (req, res, next) => {
+  const orderId = req.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(orderId)) {
+    res.status(400).json({ message: "無效的訂單 ID" });
+    return;
+  }
+
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({ message: "找不到訂單" });
+      return;
+    }
+
+    // 檢查 order 是否已刪除
+    if (order.isDeleted) {
+      res.status(403).json({ message: "該訂單已刪除，無法執行此操作" });
+      return;
+    }
+
+    if (order.isPaid) {
+      res.status(400).json({ message: "訂單已結帳" });
+      return;
+    }
+
+    // 邏輯分支處理
+    if (order.orderType === "內用" && !order.isAllServed) {
+      res.status(403).json({ message: "內用訂單需全部出餐後才能結帳" });
+      return;
+    }
+
+    // 外帶或內用出餐完成後才允許
+    order.isPaid = true;
+    order.updatedAt = new Date();
+
+    await order.save();
+
+    res.status(200).json({ message: "訂單已標示為結帳", order });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 308 - 訂單完成
+export const completeOrder: RequestHandler = async (req, res, next) => {
+  const orderId = req.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(orderId)) {
+    res.status(400).json({ message: "無效的訂單 ID" });
+    return;
+  }
+
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({ message: "找不到訂單" });
+      return;
+    }
+
+    // 檢查 order 是否已刪除
+    if (order.isDeleted) {
+      res.status(403).json({ message: "該訂單已刪除，無法執行此操作" });
+      return;
+    }
+
+    if (order.isComplete) {
+      res.status(400).json({ message: "訂單已完成" });
+      return;
+    }
+
+    if (!order.isAllServed || !order.isPaid) {
+      res.status(403).json({ message: "訂單尚未全部出餐並結帳，無法完成" });
+      return;
+    }
+
+    // 標記訂單為已完成
+    order.isComplete = true;
+    order.updatedAt = new Date();
+
+    // 如果是內用，要更新桌位狀態
+    if (order.orderType === "內用" && order.tableId) {
+      const table = await Table.findById(order.tableId);
+      if (table) {
+        table.status = TableStatus.Available;
+        table.qrToken = crypto.randomUUID();
+        table.currentOrder = null;
+        await table.save();
+      }
+    }
+
+    await order.save();
+
+    res.status(200).json({ message: "訂單已完成", order });
+  } catch (err) {
+    next(err);
   }
 };

@@ -1,8 +1,10 @@
+import { boolean } from "joi";
 import mongoose, { Schema, Document } from "mongoose";
 
 interface AddonOption {
   name: string;
   price: number;
+  selected: boolean;
 }
 
 interface Addon {
@@ -36,12 +38,14 @@ export interface IOrder extends Document {
   isComplete: boolean;
   createdAt: Date;
   updatedAt: Date;
+  isDeleted?: boolean;
 }
 
 const AddonOptionSchema = new Schema<AddonOption>(
   {
     name: { type: String, required: true },
     price: { type: Number, required: true },
+    selected: { type: Boolean, required: true },
   },
   { _id: false }
 );
@@ -85,6 +89,7 @@ const OrderSchema = new Schema<IOrder>(
     isAllServed: { type: Boolean, required: true, default: false },
     isPaid: { type: Boolean, required: true, default: false },
     isComplete: { type: Boolean, required: true, default: false },
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

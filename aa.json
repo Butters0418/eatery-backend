@@ -1,0 +1,17 @@
+{
+  "message": "訂單已軟刪除",
+  "order": {
+    "_id": "6807125fd3cfb3186330c107",
+    "orderType": "內用",
+    "orderCode": "T-03-001",
+    "tableId": "67e7b860b0da2c2418bc972e",
+    "orderList": [],
+    "totalPrice": 110,
+    "isAllServed": false,
+    "isPaid": false,
+    "isComplete": false,
+    "createdAt": "2025-04-22T03:51:59.224Z",
+    "updatedAt": "2025-04-22T05:18:28.342Z",
+    "__v": 13
+  }
+}
