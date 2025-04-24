@@ -1,17 +1,66 @@
 {
-  "message": "訂單已軟刪除",
-  "order": {
-    "_id": "6807125fd3cfb3186330c107",
-    "orderType": "內用",
-    "orderCode": "T-03-001",
-    "tableId": "67e7b860b0da2c2418bc972e",
-    "orderList": [],
-    "totalPrice": 110,
-    "isAllServed": false,
-    "isPaid": false,
-    "isComplete": false,
-    "createdAt": "2025-04-22T03:51:59.224Z",
-    "updatedAt": "2025-04-22T05:18:28.342Z",
-    "__v": 13
-  }
+  "orderType": "內用",
+  "tableId": "67e7b860b0da2c2418bc972e",
+  "tableToken": "3c613d6a-fd0a-4b84-ad99-d428340e971b",
+  "orderList": [
+    {
+      "item": [
+        {
+          "productId": "6800c1ef57a51882d5a56e1b",
+          "name": "紅茶35",
+          "qty": 1,
+          "price": 30,
+          "addons": []
+        },
+        {
+          "productId": "67e66131b1cee6827f6715b8",
+          "name": "大乾麵2",
+          "price": 50,
+          "qty": 1,
+          "addons": [
+            {
+              "group": "辣度",
+              "options": [
+                {
+                  "name": "不辣",
+                  "price": 0,
+                  "selected": false
+                },
+                {
+                  "name": "小辣",
+                  "price": 0,
+                  "selected": true
+                },
+                {
+                  "name": "中辣",
+                  "price": 0,
+                  "selected": false
+                }
+              ]
+            },
+            {
+              "group": "加料",
+              "options": [
+                {
+                  "name": "不加麵",
+                  "price": 0,
+                  "selected": false
+                },
+                {
+                  "name": "加麵",
+                  "price": 50,
+                  "selected": true
+                },
+                {
+                  "name": "加大麵",
+                  "price": 100,
+                  "selected": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

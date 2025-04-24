@@ -51,7 +51,7 @@ const calculateTotalPrice = (orderList: OrderListItem[]): number => {
   }, 0);
 };
 
-// 300 - 取得所有訂單
+// ❌ 300 - 取得所有訂單 (使用309)
 export const getAllOrders: RequestHandler = async (req, res, next) => {
   try {
     const { date, type } = req.query;
@@ -540,6 +540,83 @@ export const completeOrder: RequestHandler = async (req, res, next) => {
     await order.save();
 
     res.status(200).json({ message: "訂單已完成", order });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 309 - 取得訂單(整合)
+export const getOrders: RequestHandler = async (req: AuthRequest, res, next) => {
+  try {
+    const { date, orderType, tableId, isPaid, isComplete, includeDeleted, qrToken } = req.query;
+
+    const hasToken = !!req.headers.authorization;
+    const isCustomer = !hasToken && typeof qrToken === "string";
+
+    // ---------------- 顧客端 ----------------
+    if (isCustomer) {
+      const table = await Table.findOne({ qrToken });
+      if (!table) {
+        res.status(404).json({ message: "找不到對應桌號" });
+        return;
+      }
+
+      if (!table.currentOrder) {
+        res.status(404).json({ message: "目前無進行中的訂單" });
+        return;
+      }
+
+      const order = await Order.findOne({
+        _id: table.currentOrder,
+        isDeleted: { $ne: true },
+      }).populate("tableId", "tableNumber");
+
+      if (!order) {
+        res.status(404).json({ message: "找不到訂單" });
+        return;
+      }
+
+      res.json([order]); // 顧客查詢也維持回傳陣列格式
+      return;
+    }
+
+    // ---------------- 管理端 ----------------
+    const user = req.user;
+    if (!user || (user.role !== "admin" && user.role !== "staff")) {
+      res.status(403).json({ message: "只有店員與管理員可查詢訂單" });
+      return;
+    }
+
+    const query: any = {};
+
+    // 🔒 除非 admin 顯式帶 includeDeleted=true，否則排除 isDeleted
+    if (!(includeDeleted === "true" && user.role === "admin")) {
+      query.isDeleted = { $ne: true };
+    }
+
+    if (date) {
+      const start = new Date(`${date}T00:00:00`);
+      const end = new Date(`${date}T23:59:59`);
+      query.createdAt = { $gte: start, $lte: end };
+    }
+
+    if (orderType === "內用" || orderType === "外帶") {
+      query.orderType = orderType;
+    }
+
+    if (isPaid === "true") query.isPaid = true;
+    if (isPaid === "false") query.isPaid = false;
+
+    if (isComplete === "true") query.isComplete = true;
+    if (isComplete === "false") query.isComplete = false;
+
+    if (tableId) {
+      query.tableId = tableId;
+    }
+
+    const orders = await Order.find(query).sort({ createdAt: -1 }).populate("tableId", "tableNumber");
+
+    res.json(orders);
   } catch (err) {
     next(err);
   }

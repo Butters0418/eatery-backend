@@ -129,7 +129,7 @@ export const deleteTable: RequestHandler = async (req, res, next) => {
   }
 };
 
-// 405 - 重置桌位
+// 405 - 重置桌位 (改由 order 來處理)
 export const resetTable: RequestHandler = async (req, res, next) => {
   const tableId = req.params.id;
 
