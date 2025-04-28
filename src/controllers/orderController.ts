@@ -396,10 +396,16 @@ export const softDeleteOrder: RequestHandler = async (req, res, next) => {
   }
 };
 
-// 306 -  item 標示已出餐 (單次點餐)
+// 306 - 更新單一點餐的出餐狀態 (toggle 版)
 export const markItemAsServed: RequestHandler = async (req, res, next) => {
   const orderId = req.params.id;
   const itemCode = req.params.itemCode;
+  const { isServed } = req.body; // 取得新的 isServed 狀態
+
+  if (typeof isServed !== "boolean") {
+    res.status(400).json({ message: "請提供正確的 isServed 狀態 (true 或 false)" });
+    return;
+  }
 
   if (!mongoose.Types.ObjectId.isValid(orderId)) {
     res.status(400).json({ message: "無效的訂單 ID" });
@@ -413,7 +419,6 @@ export const markItemAsServed: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    // 檢查 order 是否已刪除
     if (order.isDeleted) {
       res.status(403).json({ message: "該訂單已刪除，無法執行此操作" });
       return;
@@ -425,29 +430,30 @@ export const markItemAsServed: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    if (entry.isServed) {
-      res.status(400).json({ message: "該項目已標示為出餐" });
-      return;
-    }
+    // 更新指定項目的 isServed 狀態
+    entry.isServed = isServed;
 
-    // 標記為已出餐
-    entry.isServed = true;
-
-    // 檢查是否所有項目都已出餐
-    order.isAllServed = order.orderList.every((entry) => entry.isServed);
+    // 檢查整張訂單是否所有項目都出餐
+    order.isAllServed = order.orderList.length > 0 && order.orderList.every((entry) => entry.isServed);
 
     order.updatedAt = new Date();
     await order.save();
 
-    res.status(200).json({ message: "項目已標示為出餐", order });
+    res.status(200).json({ message: "項目出餐狀態已更新", order });
   } catch (err) {
     next(err);
   }
 };
 
-// 307 - 訂單結帳
+// 307 - 更新訂單的結帳狀態 (toggle 版)
 export const markOrderAsPaid: RequestHandler = async (req, res, next) => {
   const orderId = req.params.id;
+  const { isPaid } = req.body; // 取得新的 isPaid 狀態
+
+  if (typeof isPaid !== "boolean") {
+    res.status(400).json({ message: "請提供正確的 isPaid 狀態 (true 或 false)" });
+    return;
+  }
 
   if (!mongoose.Types.ObjectId.isValid(orderId)) {
     res.status(400).json({ message: "無效的訂單 ID" });
@@ -461,30 +467,21 @@ export const markOrderAsPaid: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    // 檢查 order 是否已刪除
     if (order.isDeleted) {
       res.status(403).json({ message: "該訂單已刪除，無法執行此操作" });
       return;
     }
 
-    if (order.isPaid) {
-      res.status(400).json({ message: "訂單已結帳" });
-      return;
-    }
-
-    // 邏輯分支處理
-    if (order.orderType === "內用" && !order.isAllServed) {
+    if (order.orderType === "內用" && isPaid === true && !order.isAllServed) {
       res.status(403).json({ message: "內用訂單需全部出餐後才能結帳" });
       return;
     }
 
-    // 外帶或內用出餐完成後才允許
-    order.isPaid = true;
+    order.isPaid = isPaid;
     order.updatedAt = new Date();
-
     await order.save();
 
-    res.status(200).json({ message: "訂單已標示為結帳", order });
+    res.status(200).json({ message: "訂單結帳狀態已更新", order });
   } catch (err) {
     next(err);
   }

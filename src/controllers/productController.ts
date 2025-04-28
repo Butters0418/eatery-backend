@@ -5,27 +5,38 @@ import Product from "../models/Product";
 import { createProductSchema, updateProductSchema } from "../validations/productValidation";
 
 // 200 - 取得所有商品
-export const getAllProducts: RequestHandler = async (_req, res, next) => {
+export const getAllProducts: RequestHandler = async (req: AuthRequest, res, next) => {
   try {
-    const products = await Product.find();
+    let query = {};
+
+    // 如果沒有登入 或者不是 admin/staff
+    if (!req.user || (req.user.role !== "admin" && req.user.role !== "staff")) {
+      query = { isAvailable: true };
+    }
+
+    const products = await Product.find(query).select("name price category imageUrl isAvailable isPopular");
     res.json(products);
   } catch (err) {
     next(err);
   }
 };
-
 // 201 - 取得單一商品詳細資料
-export const getProductById: RequestHandler = async (req, res, next) => {
+export const getProductById: RequestHandler = async (req: AuthRequest, res, next) => {
   const productId = req.params.id;
 
-  // 檢查是否為有效的 ObjectId
   if (!mongoose.Types.ObjectId.isValid(productId)) {
     res.status(400).json({ message: "無效的商品 ID" });
     return;
   }
 
   try {
-    const product = await Product.findById(productId);
+    let query: any = { _id: productId };
+
+    if (!req.user || (req.user.role !== "admin" && req.user.role !== "staff")) {
+      query.isAvailable = true;
+    }
+
+    const product = await Product.findOne(query);
 
     if (!product) {
       res.status(404).json({ message: "找不到該商品" });
