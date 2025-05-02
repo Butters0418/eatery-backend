@@ -6,6 +6,7 @@ import { AuthRequest } from "../middleware/authMiddleware";
 import { createOrderSchema, updateOrderItemSchema } from "../validations/orderValidation";
 import mongoose from "mongoose";
 import crypto from "crypto";
+import { broadcastExceptSender, broadcastToAllStaff } from "../websocket/broadcast";
 
 // 產生外帶訂單編號
 const generateTakeoutCode = async () => {
@@ -148,6 +149,18 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
       });
 
       await newOrder.save();
+
+      // websocket 外帶推播給其他 staff/admin
+      broadcastExceptSender(req.user!.userId, {
+        type: "newOrder",
+        data: {
+          orderId: newOrder._id,
+          orderType: newOrder.orderType,
+          orderCode: newOrder.orderCode,
+          createdAt: newOrder.createdAt,
+        },
+      });
+
       res.status(201).json({ message: "外帶訂單建立成功", order: newOrder });
       return;
     }
@@ -188,6 +201,30 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
       existingOrder.updatedAt = new Date();
 
       await existingOrder.save();
+
+      // ✅ 加點推播
+      if (isAdminOrStaff) {
+        broadcastExceptSender(req.user!.userId, {
+          type: "newItem",
+          data: {
+            orderId: existingOrder._id,
+            orderType: existingOrder.orderType,
+            orderCode: existingOrder.orderCode,
+            createdAt: existingOrder.createdAt,
+          },
+        });
+      } else {
+        broadcastToAllStaff({
+          type: "newItem",
+          data: {
+            orderId: existingOrder._id,
+            orderType: existingOrder.orderType,
+            orderCode: existingOrder.orderCode,
+            createdAt: existingOrder.createdAt,
+          },
+        });
+      }
+
       res.status(200).json({ message: "加點成功", order: existingOrder });
       return;
     }
@@ -218,6 +255,29 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
       table.currentOrder = newOrder._id as mongoose.Types.ObjectId;
       await table.save();
 
+      // 新內用訂單推播
+      if (isAdminOrStaff) {
+        broadcastExceptSender(req.user!.userId, {
+          type: "newOrder",
+          data: {
+            orderId: newOrder._id,
+            orderType: newOrder.orderType,
+            orderCode: newOrder.orderCode,
+            createdAt: newOrder.createdAt,
+          },
+        });
+      } else {
+        broadcastToAllStaff({
+          type: "newOrder",
+          data: {
+            orderId: newOrder._id,
+            orderType: newOrder.orderType,
+            orderCode: newOrder.orderCode,
+            createdAt: newOrder.createdAt,
+          },
+        });
+      }
+
       res.status(201).json({ message: "訂單建立成功", order: newOrder });
       return;
     }
@@ -236,7 +296,7 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
 };
 
 // 303 - 編輯訂單之單次點餐 item
-export const updateOrderItem: RequestHandler = async (req, res, next) => {
+export const updateOrderItem: RequestHandler = async (req: AuthRequest, res, next) => {
   try {
     const orderId = req.params.id;
     const itemCode = req.params.itemCode;
@@ -252,7 +312,6 @@ export const updateOrderItem: RequestHandler = async (req, res, next) => {
 
     // 檢查 order 是否存在
     const order = await Order.findById(orderId);
-
     if (!order) {
       res.status(404).json({ message: "找不到訂單" });
       return;
@@ -286,6 +345,17 @@ export const updateOrderItem: RequestHandler = async (req, res, next) => {
     order.updatedAt = new Date();
     await order.save();
 
+    // ✅ 推播通知：告訴其他 staff/admin 該訂單有被修改
+    broadcastExceptSender(req.user!.userId, {
+      type: "orderUpdated",
+      data: {
+        orderId: order._id,
+        orderType: order.orderType,
+        orderCode: order.orderCode,
+        updatedAt: order.updatedAt,
+      },
+    });
+
     res.json({ message: "訂單已更新", order });
   } catch (err) {
     next(err);
@@ -293,7 +363,7 @@ export const updateOrderItem: RequestHandler = async (req, res, next) => {
 };
 
 // 304 - 刪除單一點餐 item
-export const deleteOrderItem: RequestHandler = async (req, res, next) => {
+export const deleteOrderItem: RequestHandler = async (req: AuthRequest, res, next) => {
   const orderId = req.params.id;
   const itemCode = req.params.itemCode;
 
@@ -337,6 +407,15 @@ export const deleteOrderItem: RequestHandler = async (req, res, next) => {
     order.isAllServed = order.orderList.every((entry) => entry.isServed);
     await order.save();
 
+    broadcastExceptSender(req.user!.userId, {
+      type: "deleteOrderItem",
+      data: {
+        orderId: order._id,
+        orderCode: order.orderCode,
+        itemCode,
+      },
+    });
+
     res.json({ message: "訂單項目已刪除", order });
   } catch (err) {
     next(err);
@@ -344,7 +423,7 @@ export const deleteOrderItem: RequestHandler = async (req, res, next) => {
 };
 
 // 305 - 刪除訂單（軟刪除)
-export const softDeleteOrder: RequestHandler = async (req, res, next) => {
+export const softDeleteOrder: RequestHandler = async (req: AuthRequest, res, next) => {
   try {
     const orderId = req.params.id;
 
@@ -389,6 +468,13 @@ export const softDeleteOrder: RequestHandler = async (req, res, next) => {
     }
 
     await order.save();
+    broadcastExceptSender(req.user!.userId, {
+      type: "deleteOrder",
+      data: {
+        orderId: order._id,
+        orderCode: order.orderCode,
+      },
+    });
 
     res.json({ message: "訂單已軟刪除", order });
   } catch (err) {
@@ -397,7 +483,7 @@ export const softDeleteOrder: RequestHandler = async (req, res, next) => {
 };
 
 // 306 - 更新單一點餐的出餐狀態 (toggle 版)
-export const markItemAsServed: RequestHandler = async (req, res, next) => {
+export const markItemAsServed: RequestHandler = async (req: AuthRequest, res, next) => {
   const orderId = req.params.id;
   const itemCode = req.params.itemCode;
   const { isServed } = req.body; // 取得新的 isServed 狀態
@@ -439,6 +525,16 @@ export const markItemAsServed: RequestHandler = async (req, res, next) => {
     order.updatedAt = new Date();
     await order.save();
 
+    broadcastExceptSender(req.user!.userId, {
+      type: "itemServed",
+      data: {
+        orderId: order._id,
+        orderCode: order.orderCode,
+        itemCode: entry.itemCode,
+        isServed: entry.isServed,
+      },
+    });
+
     res.status(200).json({ message: "項目出餐狀態已更新", order });
   } catch (err) {
     next(err);
@@ -446,7 +542,7 @@ export const markItemAsServed: RequestHandler = async (req, res, next) => {
 };
 
 // 307 - 更新訂單的結帳狀態 (toggle 版)
-export const markOrderAsPaid: RequestHandler = async (req, res, next) => {
+export const markOrderAsPaid: RequestHandler = async (req: AuthRequest, res, next) => {
   const orderId = req.params.id;
   const { isPaid } = req.body; // 取得新的 isPaid 狀態
 
@@ -481,6 +577,15 @@ export const markOrderAsPaid: RequestHandler = async (req, res, next) => {
     order.updatedAt = new Date();
     await order.save();
 
+    broadcastExceptSender(req.user!.userId, {
+      type: "orderPaid",
+      data: {
+        orderId: order._id,
+        orderCode: order.orderCode,
+        isPaid: order.isPaid,
+      },
+    });
+
     res.status(200).json({ message: "訂單結帳狀態已更新", order });
   } catch (err) {
     next(err);
@@ -488,7 +593,7 @@ export const markOrderAsPaid: RequestHandler = async (req, res, next) => {
 };
 
 // 308 - 訂單完成
-export const completeOrder: RequestHandler = async (req, res, next) => {
+export const completeOrder: RequestHandler = async (req: AuthRequest, res, next) => {
   const orderId = req.params.id;
 
   if (!mongoose.Types.ObjectId.isValid(orderId)) {
@@ -535,6 +640,14 @@ export const completeOrder: RequestHandler = async (req, res, next) => {
     }
 
     await order.save();
+
+    broadcastExceptSender(req.user!.userId, {
+      type: "orderCompleted",
+      data: {
+        orderId: order._id,
+        orderCode: order.orderCode,
+      },
+    });
 
     res.status(200).json({ message: "訂單已完成", order });
   } catch (err) {
