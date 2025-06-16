@@ -26,7 +26,7 @@ export const loginUser: RequestHandler = async (req, res, next) => {
     }
 
     if (user.isLocked) {
-      const lockedMessage = user.role === "admin" ? "帳號已鎖定，驗證碼已寄到您的信箱" : "帳號已鎖定，請聯絡管理員";
+      const lockedMessage = user.role === "admin" ? "密碼錯誤 3 次已鎖定，請點選忘記密碼" : "帳號已鎖定，請聯絡管理員";
       res.status(403).json({ message: lockedMessage });
       return;
     }
@@ -37,19 +37,18 @@ export const loginUser: RequestHandler = async (req, res, next) => {
 
       if (user.loginFailCount >= 3) {
         user.isLocked = true;
-
-        if (user.role === "admin") {
-          const code = crypto.randomInt(100000, 999999).toString();
-          user.verificationCode = code;
-          user.verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
-          await sendVerificationCode(user.account, code);
-        }
+        // if (user.role === "admin") {
+        //   const code = crypto.randomInt(100000, 999999).toString();
+        //   user.verificationCode = code;
+        //   user.verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
+        //   await sendVerificationCode(user.account, code);
+        // }
       }
 
       await user.save();
 
       if (user.isLocked) {
-        const lockedMessage = user.role === "admin" ? "帳號已鎖定，驗證碼已寄到您的信箱" : "帳號已鎖定，請聯絡管理員";
+        const lockedMessage = user.role === "admin" ? "密碼錯誤 3 次已鎖定，請點選忘記密碼" : "帳號已鎖定，請聯絡管理員";
         res.status(403).json({ message: lockedMessage });
         return;
       }
@@ -77,16 +76,27 @@ export const loginUser: RequestHandler = async (req, res, next) => {
 };
 
 // 102 取得目前登入者資訊 (admin 與 staff 皆可)
-export const getCurrentUser: RequestHandler = (req: AuthRequest, res) => {
+export const getCurrentUser: RequestHandler = async (req: AuthRequest, res) => {
   if (!req.user) {
     res.status(401).json({ message: "未授權存取" });
     return;
   }
 
-  res.json({
-    userId: req.user.userId,
-    role: req.user.role,
-  });
+  try {
+    const user = await User.findById(req.user.userId).lean();
+    if (!user) {
+      res.status(404).json({ message: "找不到使用者" });
+      return;
+    }
+
+    res.json({
+      userId: user._id,
+      account: user.account,
+      role: user.role,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "伺服器錯誤" });
+  }
 };
 
 // 103 取得所有使用者資訊（限 admin）
