@@ -64,7 +64,8 @@ const itemSchema = Joi.object({
     "number.min": "商品數量至少為 1",
     "any.required": "商品數量為必填",
   }),
-  addons: Joi.array().items(addonSchema).required(),
+  addons: Joi.alternatives().try(Joi.array().items(addonSchema), Joi.valid(null)).required(),
+  compositeId: Joi.string(), // 添加對 compositeId 的驗證
 }).external(validateProductExistence);
 
 // 單一訂單項目（可能是加點）

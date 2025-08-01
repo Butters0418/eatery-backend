@@ -44,7 +44,8 @@ export const createProductSchema = Joi.object({
           }),
       })
     )
-    .default([]),
+    .allow(null)
+    .default(null),
 });
 
 export const updateProductSchema = Joi.object({
@@ -61,22 +62,24 @@ export const updateProductSchema = Joi.object({
   category: Joi.string().messages({
     "string.empty": "分類不可為空",
   }),
-  addons: Joi.array().items(
-    Joi.object({
-      group: Joi.string().required().messages({
-        "any.required": "加料群組為必填",
-      }),
-      options: Joi.array()
-        .items(
-          Joi.object({
-            name: Joi.string().required().messages({
-              "any.required": "選項名稱為必填",
-            }),
-            price: Joi.number().min(0).default(0),
-          })
-        )
-        .min(1)
-        .required(),
-    })
-  ),
+  addons: Joi.array()
+    .items(
+      Joi.object({
+        group: Joi.string().required().messages({
+          "any.required": "加料群組為必填",
+        }),
+        options: Joi.array()
+          .items(
+            Joi.object({
+              name: Joi.string().required().messages({
+                "any.required": "選項名稱為必填",
+              }),
+              price: Joi.number().min(0).default(0),
+            })
+          )
+          .min(1)
+          .required(),
+      })
+    )
+    .allow(null),
 });

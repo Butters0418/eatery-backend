@@ -9,12 +9,13 @@ export const getAllProducts: RequestHandler = async (req: AuthRequest, res, next
   try {
     let query = {};
 
-    // 如果沒有登入 或者不是 admin/staff
+    // 如果沒有登入 或者不是 admin/staff，只能看到上架的商品
+    // 如果是 admin/staff，則可以看到所有商品
     if (!req.user || (req.user.role !== "admin" && req.user.role !== "staff")) {
       query = { isAvailable: true };
     }
 
-    const products = await Product.find(query).select("name price category imageUrl isAvailable isPopular");
+    const products = await Product.find(query).select("_id description name price category imageUrl isAvailable isPopular addons");
     res.json(products);
   } catch (err) {
     next(err);

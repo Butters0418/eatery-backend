@@ -172,7 +172,7 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
       return;
     }
 
-    if (!isAdminOrStaff && table.qrToken !== tableToken) {
+    if (!isAdminOrStaff && table.tableToken !== tableToken) {
       res.status(400).json({ message: "桌號驗證失敗，請重新掃描 QRCode" });
       return;
     }
@@ -461,7 +461,7 @@ export const softDeleteOrder: RequestHandler = async (req: AuthRequest, res, nex
       const table = await Table.findById(order.tableId);
       if (table) {
         table.status = TableStatus.Available;
-        table.qrToken = crypto.randomUUID();
+        table.tableToken = crypto.randomUUID();
         table.currentOrder = null;
         await table.save();
       }
@@ -633,7 +633,7 @@ export const completeOrder: RequestHandler = async (req: AuthRequest, res, next)
       const table = await Table.findById(order.tableId);
       if (table) {
         table.status = TableStatus.Available;
-        table.qrToken = crypto.randomUUID();
+        table.tableToken = crypto.randomUUID();
         table.currentOrder = null;
         await table.save();
       }
@@ -658,14 +658,14 @@ export const completeOrder: RequestHandler = async (req: AuthRequest, res, next)
 // 309 - 取得訂單(整合)
 export const getOrders: RequestHandler = async (req: AuthRequest, res, next) => {
   try {
-    const { date, orderType, tableId, isPaid, isComplete, includeDeleted, qrToken } = req.query;
+    const { date, orderType, tableId, isPaid, isComplete, includeDeleted, tableToken } = req.query;
 
     const hasToken = !!req.headers.authorization;
-    const isCustomer = !hasToken && typeof qrToken === "string";
+    const isCustomer = !hasToken && typeof tableToken === "string";
 
     // ---------------- 顧客端 ----------------
     if (isCustomer) {
-      const table = await Table.findOne({ qrToken });
+      const table = await Table.findOne({ tableToken });
       if (!table) {
         res.status(404).json({ message: "找不到對應桌號" });
         return;

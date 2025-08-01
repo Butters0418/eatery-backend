@@ -63,7 +63,7 @@ export const createTable: RequestHandler = async (req, res, next) => {
       tableNumber,
       qrImage,
       status: TableStatus.Available,
-      qrToken: crypto.randomUUID(), // 產生 16碼 token
+      tableToken: crypto.randomUUID(), // 產生 16碼 token
     });
 
     await newTable.save();
@@ -146,13 +146,13 @@ export const resetTable: RequestHandler = async (req, res, next) => {
     }
 
     table.status = TableStatus.Available;
-    table.qrToken = crypto.randomUUID();
+    table.tableToken = crypto.randomUUID();
     table.currentOrder = null;
     await table.save();
 
     res.json({
       message: "桌位已重置，等待下一組客人使用",
-      newToken: table.qrToken,
+      newToken: table.tableToken,
     });
   } catch (err) {
     next(err);
@@ -160,7 +160,7 @@ export const resetTable: RequestHandler = async (req, res, next) => {
 };
 
 // 407 - 取得 QR Code Token
-export const getQrTokenByTableCode: RequestHandler = async (req, res, next) => {
+export const gettableTokenByTableCode: RequestHandler = async (req, res, next) => {
   const code = req.query.code;
   if (!code || typeof code !== "string") {
     res.status(400).json({ message: "缺少桌號參數 (code)" });
@@ -178,13 +178,13 @@ export const getQrTokenByTableCode: RequestHandler = async (req, res, next) => {
     const tableNumber = parseInt(match[1], 10);
     const table = await Table.findOne({ tableNumber });
 
-    if (!table || !table.qrToken) {
-      res.status(404).json({ message: "找不到該桌號或尚未分配 QRToken" });
+    if (!table || !table.tableToken) {
+      res.status(404).json({ message: "找不到該桌號或尚未分配 tableToken" });
       return;
     }
 
     res.json({
-      qrToken: table.qrToken,
+      tableToken: table.tableToken,
       tableId: table._id,
     });
     return;
