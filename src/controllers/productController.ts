@@ -7,6 +7,7 @@ import { createProductSchema, updateProductSchema } from "../validations/product
 // 200 - 取得所有商品
 export const getAllProducts: RequestHandler = async (req: AuthRequest, res, next) => {
   try {
+    // 🔍 Debug 資訊
     let query = {};
 
     // 如果沒有登入 或者不是 admin/staff，只能看到上架的商品
