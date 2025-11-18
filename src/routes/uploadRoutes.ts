@@ -2,10 +2,10 @@
 import express from "express";
 import { uploadImage } from "../controllers/uploadController";
 import { verifyToken, checkAdmin } from "../middleware/authMiddleware";
-import upload from "../middleware/uploadMiddleware";
+import upload, { handleMulterError } from "../middleware/uploadMiddleware";
 
 const router = express.Router();
 
-router.post("/upload/image", verifyToken, checkAdmin, upload.single("image"), uploadImage);
+router.post("/upload/image", verifyToken, checkAdmin, upload.single("image"), handleMulterError, uploadImage);
 
 export default router;
