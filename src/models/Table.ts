@@ -9,7 +9,6 @@ export interface ITable extends Document {
   tableNumber: number;
   status: TableStatus;
   currentOrder?: mongoose.Types.ObjectId | null;
-  qrImage: string;
   tableToken: string;
   updated_at: Date;
 }
@@ -24,7 +23,6 @@ const TableSchema: Schema<ITable> = new Schema(
       default: TableStatus.Available,
     },
     currentOrder: { type: Schema.Types.ObjectId, ref: "Order", default: null },
-    qrImage: { type: String, required: true },
     tableToken: { type: String, required: true },
   },
   { timestamps: { updatedAt: "updated_at" } }

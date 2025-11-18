@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { RequestHandler } from "express";
 import Table from "../models/Table";
+import "../models/Order"; // 確保 Order 模型被註冊到 Mongoose
 import { createTableSchema, updateTableSchema } from "../validations/tableValidation";
 import crypto from "crypto";
 import { AuthRequest } from "../middleware/authMiddleware";
@@ -10,7 +11,39 @@ import { TableStatus } from "../models/Table";
 export const getAllTables: RequestHandler = async (_req, res, next) => {
   try {
     const tables = await Table.find();
-    res.json(tables);
+
+    // 為每個桌位計算 orderInfo 屬性
+    const tablesWithOrderInfo = await Promise.all(
+      tables.map(async (table) => {
+        const tableObj = table.toObject();
+
+        // 計算訂單資訊
+        let orderInfo = null;
+
+        if (table.currentOrder) {
+          // 查詢訂單詳細資訊
+          const Order = mongoose.model("Order");
+          const order = await Order.findById(table.currentOrder).select("isAllServed isPaid isComplete isDeleted createdAt updatedAt");
+          if (order) {
+            orderInfo = {
+              isAllServed: order.isAllServed,
+              isPaid: order.isPaid,
+              isComplete: order.isComplete,
+              isDeleted: order.isDeleted,
+              createdAt: order.createdAt,
+              updatedAt: order.updatedAt,
+            };
+          }
+        }
+
+        return {
+          ...tableObj,
+          orderInfo,
+        };
+      })
+    );
+
+    res.json(tablesWithOrderInfo);
   } catch (err) {
     next(err);
   }
@@ -33,7 +66,32 @@ export const getTableById: RequestHandler = async (req, res, next) => {
       res.status(404).json({ message: "找不到該桌位" });
       return;
     }
-    res.json(table);
+
+    const tableObj = table.toObject();
+
+    // 計算訂單資訊
+    let orderInfo = null;
+
+    if (table.currentOrder) {
+      // 查詢訂單詳細資訊
+      const Order = mongoose.model("Order");
+      const order = await Order.findById(table.currentOrder).select("isAllServed isPaid isComplete isDeleted createdAt updatedAt");
+      if (order) {
+        orderInfo = {
+          isAllServed: order.isAllServed,
+          isPaid: order.isPaid,
+          isComplete: order.isComplete,
+          isDeleted: order.isDeleted,
+          createdAt: order.createdAt,
+          updatedAt: order.updatedAt,
+        };
+      }
+    }
+
+    res.json({
+      ...tableObj,
+      orderInfo,
+    });
   } catch (err) {
     next(err);
   }
@@ -49,7 +107,7 @@ export const createTable: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    const { tableNumber, qrImage } = req.body;
+    const { tableNumber } = req.body;
 
     // 檢查是否已有相同桌號
     const existing = await Table.findOne({ tableNumber });
@@ -61,7 +119,6 @@ export const createTable: RequestHandler = async (req, res, next) => {
     // 建立新桌位資料
     const newTable = new Table({
       tableNumber,
-      qrImage,
       status: TableStatus.Available,
       tableToken: crypto.randomUUID(), // 產生 16碼 token
     });
@@ -95,9 +152,8 @@ export const updateTable: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    const { tableNumber, qrImage } = req.body;
+    const { tableNumber } = req.body;
     if (tableNumber !== undefined) table.tableNumber = tableNumber;
-    if (qrImage !== undefined) table.qrImage = qrImage;
 
     await table.save();
     res.json({ message: "桌位資訊已更新", table });
@@ -183,9 +239,29 @@ export const gettableTokenByTableCode: RequestHandler = async (req, res, next) =
       return;
     }
 
+    // 計算訂單資訊
+    let orderInfo = null;
+
+    if (table.currentOrder) {
+      // 查詢訂單詳細資訊
+      const Order = mongoose.model("Order");
+      const order = await Order.findById(table.currentOrder).select("isAllServed isPaid isComplete isDeleted createdAt updatedAt");
+      if (order) {
+        orderInfo = {
+          isAllServed: order.isAllServed,
+          isPaid: order.isPaid,
+          isComplete: order.isComplete,
+          isDeleted: order.isDeleted,
+          createdAt: order.createdAt,
+          updatedAt: order.updatedAt,
+        };
+      }
+    }
+
     res.json({
       tableToken: table.tableToken,
       tableId: table._id,
+      orderInfo,
     });
     return;
   } catch (err) {
