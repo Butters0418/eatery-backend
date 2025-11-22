@@ -61,3 +61,16 @@ export const resetPasswordSchema = Joi.object({
   account: Joi.string().email().required(),
   newPassword: Joi.string().min(6).required(),
 });
+
+// admin 修改密碼驗證
+export const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required().messages({
+    "string.empty": "目前密碼不可為空",
+    "any.required": "目前密碼為必填",
+  }),
+  newPassword: Joi.string().min(6).required().messages({
+    "string.empty": "新密碼不可為空",
+    "string.min": "新密碼至少需要 6 個字元",
+    "any.required": "新密碼為必填",
+  }),
+});

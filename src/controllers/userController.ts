@@ -5,7 +5,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/User";
 import { AuthRequest } from "../middleware/authMiddleware";
-import { loginSchema, createUserSchema, updateUserSchema, verifyCodeSchema, resetPasswordSchema } from "../validations/userValidation";
+import { loginSchema, createUserSchema, updateUserSchema, verifyCodeSchema, resetPasswordSchema, changePasswordSchema } from "../validations/userValidation";
 import { sendVerificationCode } from "../utils/mailer";
 
 // 100 用戶登錄
@@ -307,6 +307,52 @@ export const resetPassword: RequestHandler = async (req, res, next) => {
     await user.save();
 
     res.json({ message: "密碼重設成功，請重新登入" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 111 已登入 admin 修改密碼
+export const changePassword: RequestHandler = async (req: AuthRequest, res, next) => {
+  try {
+    const { error } = changePasswordSchema.validate(req.body);
+    if (error) {
+      res.status(400).json({ message: error.details[0].message });
+      return;
+    }
+
+    if (!req.user) {
+      res.status(401).json({ message: "未授權存取" });
+      return;
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user.userId);
+
+    if (!user || user.role !== "admin") {
+      res.status(404).json({ message: "使用者不存在或無權限" });
+      return;
+    }
+
+    // 驗證目前密碼
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      res.status(401).json({ message: "目前密碼錯誤" });
+      return;
+    }
+
+    // 檢查新密碼不可與舊密碼相同
+    const isSameAsOld = await bcrypt.compare(newPassword, user.password);
+    if (isSameAsOld) {
+      res.status(400).json({ message: "新密碼不可與目前密碼相同" });
+      return;
+    }
+
+    // 更新密碼
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ message: "密碼修改成功" });
   } catch (err) {
     next(err);
   }

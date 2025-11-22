@@ -1,5 +1,5 @@
 import express, { Router } from "express";
-import { loginUser, getAllUsers, getCurrentUser, createUser, unlockUser, updateUser, deleteUser, verifyResetCode, resendVerificationCode, resetPassword } from "../controllers/userController";
+import { loginUser, getAllUsers, getCurrentUser, createUser, unlockUser, updateUser, deleteUser, verifyResetCode, resendVerificationCode, resetPassword, changePassword } from "../controllers/userController";
 import { verifyToken, checkAdmin } from "../middleware/authMiddleware";
 
 const router: Router = express.Router();
@@ -14,5 +14,6 @@ router.delete("/users/:id", verifyToken, checkAdmin, deleteUser); // 刪除 staf
 router.post("/verify-reset-code", verifyResetCode); // 驗證 admin 驗證碼
 router.post("/resend-verification-code", resendVerificationCode); // 重寄驗證碼
 router.post("/reset-password", resetPassword); // 重設密碼
+router.put("/change-password", verifyToken, checkAdmin, changePassword); // 已登入 admin 修改密碼
 
 export default router;
