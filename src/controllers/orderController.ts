@@ -157,6 +157,7 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
           orderId: newOrder._id,
           orderType: newOrder.orderType,
           orderCode: newOrder.orderCode,
+          tableNumber: null,
           createdAt: newOrder.createdAt,
         },
       });
@@ -217,6 +218,7 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
             orderId: existingOrder._id,
             orderType: existingOrder.orderType,
             orderCode: existingOrder.orderCode,
+            tableNumber: table.tableNumber,
             createdAt: existingOrder.createdAt,
           },
         });
@@ -227,6 +229,7 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
             orderId: existingOrder._id,
             orderType: existingOrder.orderType,
             orderCode: existingOrder.orderCode,
+            tableNumber: table.tableNumber,
             createdAt: existingOrder.createdAt,
           },
         });
@@ -270,6 +273,7 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
             orderId: newOrder._id,
             orderType: newOrder.orderType,
             orderCode: newOrder.orderCode,
+            tableNumber: table.tableNumber,
             createdAt: newOrder.createdAt,
           },
         });
@@ -280,6 +284,7 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
             orderId: newOrder._id,
             orderType: newOrder.orderType,
             orderCode: newOrder.orderCode,
+            tableNumber: table.tableNumber,
             createdAt: newOrder.createdAt,
           },
         });
@@ -353,12 +358,14 @@ export const updateOrderItem: RequestHandler = async (req: AuthRequest, res, nex
     await order.save();
 
     // ✅ 推播通知：告訴其他 staff/admin 該訂單有被修改
+    const table = order.tableId ? await Table.findById(order.tableId) : null;
     broadcastExceptSender(req.user!.userId, {
       type: "orderUpdated",
       data: {
         orderId: order._id,
         orderType: order.orderType,
         orderCode: order.orderCode,
+        tableNumber: table?.tableNumber || null,
         updatedAt: order.updatedAt,
       },
     });
@@ -417,9 +424,11 @@ export const deleteOrderItem: RequestHandler = async (req: AuthRequest, res, nex
       order.updatedAt = new Date();
 
       // 如果是內用，要更新桌位狀態
+      let tableNumber = null;
       if (order.orderType === "內用" && order.tableId) {
         const table = await Table.findById(order.tableId);
         if (table) {
+          tableNumber = table.tableNumber;
           table.status = TableStatus.Available;
           table.tableToken = crypto.randomUUID();
           table.currentOrder = null;
@@ -433,7 +442,9 @@ export const deleteOrderItem: RequestHandler = async (req: AuthRequest, res, nex
         type: "deleteOrder", // 改為刪除整張訂單的事件
         data: {
           orderId: order._id,
+          orderType: order.orderType,
           orderCode: order.orderCode,
+          tableNumber,
           reason: "所有項目已刪除，訂單自動移除",
         },
       });
@@ -446,11 +457,14 @@ export const deleteOrderItem: RequestHandler = async (req: AuthRequest, res, nex
     order.isAllServed = order.orderList.length > 0 && order.orderList.every((entry) => entry.isServed);
     await order.save();
 
+    const table = order.tableId ? await Table.findById(order.tableId) : null;
     broadcastExceptSender(req.user!.userId, {
       type: "deleteOrderItem",
       data: {
         orderId: order._id,
+        orderType: order.orderType,
         orderCode: order.orderCode,
+        tableNumber: table?.tableNumber || null,
         itemCode,
       },
     });
@@ -496,9 +510,11 @@ export const softDeleteOrder: RequestHandler = async (req: AuthRequest, res, nex
     order.updatedAt = new Date();
 
     // 如果是內用，要更新桌位狀態
+    let tableNumber = null;
     if (order.orderType === "內用" && order.tableId) {
       const table = await Table.findById(order.tableId);
       if (table) {
+        tableNumber = table.tableNumber;
         table.status = TableStatus.Available;
         table.tableToken = crypto.randomUUID();
         table.currentOrder = null;
@@ -511,7 +527,9 @@ export const softDeleteOrder: RequestHandler = async (req: AuthRequest, res, nex
       type: "deleteOrder",
       data: {
         orderId: order._id,
+        orderType: order.orderType,
         orderCode: order.orderCode,
+        tableNumber,
       },
     });
 
@@ -570,11 +588,14 @@ export const markItemAsServed: RequestHandler = async (req: AuthRequest, res, ne
     order.updatedAt = new Date();
     await order.save();
 
+    const table = order.tableId ? await Table.findById(order.tableId) : null;
     broadcastExceptSender(req.user!.userId, {
       type: "itemServed",
       data: {
         orderId: order._id,
+        orderType: order.orderType,
         orderCode: order.orderCode,
+        tableNumber: table?.tableNumber || null,
         itemCode: entry.itemCode,
         isServed: entry.isServed,
       },
@@ -622,11 +643,14 @@ export const markOrderAsPaid: RequestHandler = async (req: AuthRequest, res, nex
     order.updatedAt = new Date();
     await order.save();
 
+    const table = order.tableId ? await Table.findById(order.tableId) : null;
     broadcastExceptSender(req.user!.userId, {
       type: "orderPaid",
       data: {
         orderId: order._id,
+        orderType: order.orderType,
         orderCode: order.orderCode,
+        tableNumber: table?.tableNumber || null,
         isPaid: order.isPaid,
       },
     });
@@ -674,9 +698,11 @@ export const completeOrder: RequestHandler = async (req: AuthRequest, res, next)
     order.updatedAt = new Date();
 
     // 如果是內用，要更新桌位狀態
+    let tableNumber = null;
     if (order.orderType === "內用" && order.tableId) {
       const table = await Table.findById(order.tableId);
       if (table) {
+        tableNumber = table.tableNumber;
         table.status = TableStatus.Available;
         table.tableToken = crypto.randomUUID();
         table.currentOrder = null;
@@ -690,7 +716,9 @@ export const completeOrder: RequestHandler = async (req: AuthRequest, res, next)
       type: "orderCompleted",
       data: {
         orderId: order._id,
+        orderType: order.orderType,
         orderCode: order.orderCode,
+        tableNumber,
       },
     });
 
