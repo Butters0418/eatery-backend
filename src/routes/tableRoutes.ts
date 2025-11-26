@@ -1,5 +1,5 @@
 import express from "express";
-import { createTable, getAllTables, getTableById, updateTable, deleteTable, resetTable, getQrTokenByTableCode } from "../controllers/tableController";
+import { createTable, getAllTables, getTableById, updateTable, deleteTable, resetTable, gettableTokenByTableCode } from "../controllers/tableController";
 import { verifyToken, checkAdmin } from "../middleware/authMiddleware";
 
 const router = express.Router();
@@ -10,5 +10,5 @@ router.post("/tables", verifyToken, checkAdmin, createTable);
 router.patch("/tables/:id", verifyToken, checkAdmin, updateTable);
 router.delete("/tables/:id", verifyToken, checkAdmin, deleteTable);
 router.patch("/tables/:id/reset", verifyToken, resetTable);
-router.get("/table/qr-token", getQrTokenByTableCode);
+router.get("/table/qr-token", gettableTokenByTableCode);
 export default router;

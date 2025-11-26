@@ -17,7 +17,8 @@ interface OrderItem {
   name: string;
   price: number;
   qty: number;
-  addons: Addon[];
+  addons: Addon[] | null;
+  compositeId?: string; // 添加 compositeId 字段，用於識別相同產品不同配料的項目
 }
 
 export interface OrderListItem {
@@ -64,7 +65,8 @@ const OrderItemSchema = new Schema<OrderItem>(
     name: { type: String, required: true },
     price: { type: Number, required: true },
     qty: { type: Number, required: true },
-    addons: { type: [AddonSchema], default: [] },
+    addons: { type: [AddonSchema], default: null },
+    compositeId: { type: String }, // 保存前端傳來的複合ID
   },
   { _id: false }
 );

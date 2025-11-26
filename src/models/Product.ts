@@ -48,7 +48,7 @@ const ProductSchema: Schema<IProduct> = new Schema(
     imageUrl: { type: String, default: "" },
     isAvailable: { type: Boolean, required: true },
     isPopular: { type: Boolean, default: false },
-    addons: { type: [AddonGroupSchema], default: [] },
+    addons: { type: [AddonGroupSchema], default: null },
   },
   { timestamps: true }
 );
