@@ -8,6 +8,12 @@ import mongoose from "mongoose";
 import crypto from "crypto";
 import { broadcastExceptSender, broadcastToAllStaff } from "../websocket/broadcast";
 
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 // 產生外帶訂單編號
 const generateTakeoutCode = async () => {
   const today = new Date();
@@ -778,9 +784,13 @@ export const getOrders: RequestHandler = async (req: AuthRequest, res, next) => 
     // }
 
     // 📅 日期查詢：如果沒有提供 date，預設使用今日
-    const targetDate = date || new Date().toISOString().split("T")[0]; // 格式: YYYY-MM-DD
-    const start = new Date(`${targetDate}T00:00:00`);
-    const end = new Date(`${targetDate}T23:59:59`);
+    // 從前端拿到 date = '2025-11-27'，或預設使用今日台灣日期
+    const targetDate = date || dayjs().tz("Asia/Taipei").format("YYYY-MM-DD");
+
+    // 轉換為台灣當日的 UTC 時間範圍
+    const start = dayjs.tz(`${targetDate} 00:00`, "Asia/Taipei").utc().toDate();
+    const end = dayjs.tz(`${targetDate} 23:59:59.999`, "Asia/Taipei").utc().toDate();
+
     query.createdAt = { $gte: start, $lte: end };
 
     if (orderType === "內用" || orderType === "外帶") {
