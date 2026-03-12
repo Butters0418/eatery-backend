@@ -92,8 +92,8 @@ export const createOrderSchema = Joi.object({
 
   tableToken: Joi.when("orderType", {
     is: "內用",
-    then: Joi.string().required().messages({
-      "any.required": "缺少桌號驗證 token",
+    then: Joi.string().optional().allow(null, "").messages({
+      "string.base": "桌號驗證 token 格式錯誤",
     }),
     otherwise: Joi.forbidden(),
   }),

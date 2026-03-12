@@ -13,13 +13,14 @@
 - **認證機制**: JWT Token
 - **資料驗證**: Joi
 - **密碼加密**: bcryptjs
+- **專案部署**: Render
 
 ## 🔐 認證機制
 
 ### Token 類型
 
 - **JWT Token**: 用於 Admin/Staff 身份驗證
-- **Table Token**: 用於顧客內用點餐驗證
+- **Table Token**: 用於顧客內用點餐驗證（Admin/Staff 點餐時無需此 Token）
 
 ### 權限層級
 
@@ -65,6 +66,7 @@
 - ✅ 帳號登入/登出
 - ✅ 查看所有進行中訂單
 - ✅ 新增外帶訂單
+- ✅ 幫內用顧客點餐（直接選桌號，無需 Table Token）
 - ✅ 編輯未出餐的訂單項目
 - ✅ 刪除未出餐的訂單項目
 - ✅ 標記餐點出餐狀態
@@ -88,7 +90,7 @@
 #### 主要功能
 
 - ✅ 管理員登入/忘記密碼/密碼重置
-- ✅ 含 staff 所有點餐、訂單管理功能
+- ✅ 含 staff 所有點餐、訂單管理功能（包含直接選桌號點餐）
 - ✅ 商品管理 (CRUD + 上架狀態 + 圖片上傳功能)
 - ✅ 店員帳號管理 (新增/編輯/刪除/解鎖)
 - ✅ Admin 帳號管理 (修改密碼)
@@ -172,6 +174,8 @@ POST   /api/upload/image             # 圖片上傳
 
 ### 內用點餐流程
 
+#### 顧客自助點餐
+
 ```
 顧客掃描 QR Code
     ↓
@@ -194,6 +198,20 @@ Staff 標記出餐狀態
 點選訂單完成，重整桌位與 token
     ↓
 訂單完成
+```
+
+#### Staff/Admin 後台幫顧客點餐
+
+```
+Staff/Admin 登入系統
+    ↓
+選擇桌號 (無需 Table Token)
+    ↓
+選擇商品建立訂單
+    ↓
+WebSocket 通知其他 Staff & Admin
+    ↓
+後續流程同顧客自助點餐
 ```
 
 ### 外帶點餐流程
@@ -246,41 +264,13 @@ WebSocket 通知 Staff 有新加點
 - JWT Token 7 天有效期
 - 密碼錯誤 3 次鎖定帳號
 - Admin 忘記密碼有驗證碼機制
-- Table Token 動態產生，每次內用清空桌位會重新生成
+- Table Token 動態產生，每次內用清空桌位會重新生成（僅用於顧客驗證，Admin/Staff 點餐無需此 Token）
 
 ### 檔案上傳
 
 - 支援 JPG, PNG 格式
 - 檔案大小限制 2MB
 - 使用 Firebase Storage 存儲
-
-## 🚀 快速開始
-
-### 環境變數設定
-
-```bash
-# .env
-MONGO_URI=mongodb://localhost:27017/eatery
-JWT_SECRET=your-secret-key
-FIREBASE_STORAGE_BUCKET=your-bucket-name
-GMAIL_USER=your-gmail@gmail.com
-GMAIL_PASS=your-app-password
-PORT=3000
-```
-
-### 啟動專案
-
-```bash
-# 安裝套件
-npm install
-
-# 開發模式
-npm run dev
-
-# 生產模式
-npm run build
-npm start
-```
 
 ### 後台預設 Admin 帳號
 

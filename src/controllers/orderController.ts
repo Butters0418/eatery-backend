@@ -179,12 +179,14 @@ export const createOrder: RequestHandler = async (req: AuthRequest, res, next) =
       return;
     }
 
-    if (table.tableToken !== tableToken) {
-      if (!isAdminOrStaff) {
-        res.status(400).json({ message: "桌號驗證失敗，請重新掃描 QRCode" });
+    // 一般顧客必須驗證 tableToken，admin/staff 可跳過
+    if (!isAdminOrStaff) {
+      if (!tableToken) {
+        res.status(400).json({ message: "缺少桌號驗證 token，請重新掃描 QRCode" });
         return;
-      } else if (isAdminOrStaff) {
-        res.status(400).json({ message: "桌號驗證失敗" });
+      }
+      if (table.tableToken !== tableToken) {
+        res.status(400).json({ message: "桌號驗證失敗，請重新掃描 QRCode" });
         return;
       }
     }
